@@ -1,0 +1,231 @@
+#!/usr/bin/env python3
+
+import argparse
+import base64
+import json
+import os
+from pathlib import Path
+import socket
+import socketserver
+import sys
+import threading
+import tomllib
+import urllib.error
+import urllib.request
+
+
+APP_NAME = "cotypist-omarchy"
+DEFAULT_CONFIG = {
+    "model": "qwen2.5:0.5b",
+    "ollama_url": "http://127.0.0.1:11434",
+    "context_chars": 1200,
+    "max_tokens": 24,
+    "temperature": 0.2,
+    "timeout_seconds": 8.0,
+}
+
+
+def config_home() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / APP_NAME
+
+
+def runtime_dir() -> Path:
+    base = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    return Path(base) / APP_NAME
+
+
+def socket_path() -> Path:
+    return Path(os.environ.get("COTYPIST_SOCKET", runtime_dir() / "daemon.sock"))
+
+
+def load_config() -> dict:
+    config = dict(DEFAULT_CONFIG)
+    path = config_home() / "config.toml"
+    if path.exists():
+        with path.open("rb") as file:
+            config.update(tomllib.load(file))
+    return config
+
+
+def is_enabled() -> bool:
+    return not (config_home() / "disabled").exists()
+
+
+def clean_completion(value: str) -> str:
+    value = value.replace("\r", "").strip("\n")
+    for prefix in ("Continuation:", "COMPLETION:", "completion:"):
+        if value.startswith(prefix):
+            value = value[len(prefix):].lstrip()
+    value = value.split("\n", 1)[0].rstrip()
+    if value.startswith('"') and value.endswith('"') and len(value) > 1:
+        value = value[1:-1]
+    return value
+
+
+class Predictor:
+    def __init__(self, config: dict):
+        self.config = config
+        self._cache: dict[str, str] = {}
+        self._lock = threading.Lock()
+
+    def suggest(self, context: str) -> str:
+        if not is_enabled() or not context.strip():
+            return ""
+        context = context[-int(self.config["context_chars"]):]
+        with self._lock:
+            cached = self._cache.get(context)
+        if cached is not None:
+            return cached
+
+        prompt = (
+            "Continue the user's text naturally. Return only the text that comes "
+            "next, without quotes, labels, explanation, or repeating existing text. "
+            "Keep it short enough to accept one word at a time.\n\n"
+            f"Text:\n{context}"
+        )
+        body = json.dumps({
+            "model": self.config["model"],
+            "prompt": prompt,
+            "stream": False,
+            "raw": True,
+            "options": {
+                "num_predict": int(self.config["max_tokens"]),
+                "temperature": float(self.config["temperature"]),
+                "stop": ["\n\n", "Text:"],
+            },
+        }).encode()
+        request = urllib.request.Request(
+            f"{str(self.config['ollama_url']).rstrip('/')}/api/generate",
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(
+                request, timeout=float(self.config["timeout_seconds"])
+            ) as response:
+                result = clean_completion(json.load(response).get("response", ""))
+        except (OSError, urllib.error.URLError, ValueError, TimeoutError):
+            return ""
+
+        with self._lock:
+            if len(self._cache) >= 128:
+                self._cache.pop(next(iter(self._cache)))
+            self._cache[context] = result
+        return result
+
+
+class SuggestionHandler(socketserver.StreamRequestHandler):
+    def handle(self) -> None:
+        command = self.rfile.read(1)
+        if command == b"P":
+            self.wfile.write(b"ok")
+            return
+        if command != b"S":
+            return
+        context = self.rfile.read(65536).decode("utf-8", "replace")
+        self.wfile.write(self.server.predictor.suggest(context).encode())
+
+
+class SuggestionServer(socketserver.ThreadingUnixStreamServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self, path: str, predictor: Predictor):
+        self.predictor = predictor
+        super().__init__(path, SuggestionHandler)
+
+
+def socket_request(command: bytes, payload: bytes = b"") -> bytes:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+        client.settimeout(10)
+        client.connect(str(socket_path()))
+        client.sendall(command + payload)
+        client.shutdown(socket.SHUT_WR)
+        chunks = []
+        while chunk := client.recv(4096):
+            chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def serve() -> int:
+    path = socket_path()
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if path.exists():
+        try:
+            if socket_request(b"P") == b"ok":
+                print("cotypist daemon is already running", file=sys.stderr)
+                return 1
+        except OSError:
+            path.unlink()
+    server = SuggestionServer(str(path), Predictor(load_config()))
+    os.chmod(path, 0o600)
+    try:
+        server.serve_forever()
+    finally:
+        server.server_close()
+        path.unlink(missing_ok=True)
+    return 0
+
+
+def stream() -> int:
+    for line in sys.stdin:
+        try:
+            context = base64.b64decode(line.strip(), validate=True)
+            result = socket_request(b"S", context)
+            print(base64.b64encode(result).decode(), flush=True)
+        except (OSError, ValueError):
+            print("", flush=True)
+    return 0
+
+
+def status(json_output: bool) -> int:
+    healthy = False
+    try:
+        healthy = socket_request(b"P") == b"ok"
+    except OSError:
+        pass
+    data = {
+        "enabled": is_enabled(),
+        "daemon": "running" if healthy else "stopped",
+        "model": load_config()["model"],
+    }
+    print(json.dumps(data) if json_output else (
+        f"{'enabled' if data['enabled'] else 'disabled'}; "
+        f"daemon {data['daemon']}; model {data['model']}"
+    ))
+    return 0 if healthy else 1
+
+
+def toggle() -> int:
+    marker = config_home() / "disabled"
+    marker.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if marker.exists():
+        marker.unlink()
+        print("enabled")
+    else:
+        marker.touch(mode=0o600)
+        print("disabled")
+    return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Local text completion service")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser("serve")
+    subparsers.add_parser("stream")
+    status_parser = subparsers.add_parser("status")
+    status_parser.add_argument("--json", action="store_true")
+    subparsers.add_parser("toggle")
+    args = parser.parse_args()
+
+    if args.command == "serve":
+        return serve()
+    if args.command == "stream":
+        return stream()
+    if args.command == "status":
+        return status(args.json)
+    return toggle()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

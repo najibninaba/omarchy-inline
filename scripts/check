@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+
+bash -n "$root_dir/install.sh"
+bash -n "$root_dir/uninstall.sh"
+bash -n "$root_dir/src/bash/cotypist.bash"
+python -m py_compile "$root_dir/src/daemon/cotypist"
+python -m unittest discover -s "$root_dir/tests" -v
+jq -e . "$root_dir/src/plugin/manifest.json" >/dev/null
+
+if command -v cmake >/dev/null && pkg-config --exists Fcitx5Core 2>/dev/null; then
+  cmake -S "$root_dir/src/fcitx" -B "$root_dir/build/fcitx" -G Ninja -DCMAKE_BUILD_TYPE=Release
+  cmake --build "$root_dir/build/fcitx"
+fi
+
+if command -v omarchy >/dev/null; then
+  omarchy plugin validate "$root_dir/src/plugin"
+fi
+
+echo "Checks passed."

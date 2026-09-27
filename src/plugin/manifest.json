@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "najib.cotypist",
+  "name": "Cotypist",
+  "version": "0.1.0",
+  "author": "Najib",
+  "license": "MIT",
+  "description": "Local inline AI completion for Omarchy applications and Bash.",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Cotypist",
+    "description": "Toggle local inline completion and inspect its model.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

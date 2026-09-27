@@ -1,0 +1,16 @@
+[Unit]
+Description=Local inline completion daemon
+After=ollama.service
+
+[Service]
+ExecStart=%h/.local/bin/cotypist serve
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.config/cotypist-omarchy %t/cotypist-omarchy
+
+[Install]
+WantedBy=graphical-session.target
