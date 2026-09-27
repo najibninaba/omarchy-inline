@@ -6,8 +6,8 @@ root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 
 bash -n "$root_dir/install.sh"
 bash -n "$root_dir/uninstall.sh"
-bash -n "$root_dir/src/bash/cotypist.bash"
-python -m py_compile "$root_dir/src/daemon/cotypist"
+bash -n "$root_dir/src/bash/inline.bash"
+python -m py_compile "$root_dir/src/daemon/omarchy-inline"
 python -m unittest discover -s "$root_dir/tests" -v
 jq -e . "$root_dir/src/plugin/manifest.json" >/dev/null
 

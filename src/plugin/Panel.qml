@@ -6,7 +6,7 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "najib.cotypist"
+  moduleName: "najib.inline"
   manageIpc: false
 
   property bool enabled: false
@@ -26,7 +26,7 @@ Panel {
   }
 
   function toggleCompletion() {
-    Quickshell.execDetached(["cotypist", "toggle"])
+    Quickshell.execDetached(["omarchy-inline", "toggle"])
     refreshLater.restart()
   }
 
@@ -37,7 +37,7 @@ Panel {
 
   Process {
     id: statusProcess
-    command: ["cotypist", "status", "--json"]
+    command: ["omarchy-inline", "status", "--json"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: root.statusOutput = String(text || "").trim()
@@ -74,7 +74,7 @@ Panel {
     bar: root.bar
     text: "󰘦"
     dimmed: !root.enabled || !root.daemonRunning
-    tooltipText: "Cotypist: " + (root.enabled ? "Enabled" : "Disabled")
+    tooltipText: "Inline: " + (root.enabled ? "Enabled" : "Disabled")
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.RightButton) root.toggleCompletion()
       else root.toggle()
@@ -105,7 +105,7 @@ Panel {
 
         PanelHero {
           width: parent.width
-          title: "Cotypist"
+          title: "Inline"
           meta: root.daemonRunning ? (root.enabled ? "Enabled" : "Paused") : "Daemon stopped"
           foreground: root.foreground
           fontFamily: root.fontFamily

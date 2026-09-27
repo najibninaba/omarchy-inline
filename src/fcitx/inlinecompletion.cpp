@@ -32,7 +32,7 @@
 
 namespace fcitx {
 
-struct CotypistState final : InputContextProperty {
+struct InlineState final : InputContextProperty {
     uint64_t generation = 0;
     std::string suggestion;
 };
@@ -43,10 +43,10 @@ struct Request {
     std::string text;
 };
 
-class Cotypist final : public AddonInstance {
+class InlineCompletion final : public AddonInstance {
 public:
-    explicit Cotypist(Instance *instance) : instance_(instance) {
-        instance_->inputContextManager().registerProperty("cotypistState", &stateFactory_);
+    explicit InlineCompletion(Instance *instance) : instance_(instance) {
+        instance_->inputContextManager().registerProperty("inlineCompletionState", &stateFactory_);
         handlers_.emplace_back(instance_->watchEvent<EventType::InputContextSurroundingTextUpdated>(
             EventWatcherPhase::Default, [this](SurroundingTextUpdatedEvent &event) {
                 request(event.inputContext());
@@ -74,7 +74,7 @@ public:
         worker_ = std::thread([this] { work(); });
     }
 
-    ~Cotypist() override {
+    ~InlineCompletion() override {
         {
             std::lock_guard<std::mutex> lock(mutex_);
             stopping_ = true;
@@ -151,7 +151,7 @@ private:
     static std::string query(const std::string &text) {
         const char *runtime = std::getenv("XDG_RUNTIME_DIR");
         if (!runtime) return {};
-        std::string path = std::string(runtime) + "/cotypist-omarchy/daemon.sock";
+        std::string path = std::string(runtime) + "/omarchy-inline/daemon.sock";
         if (path.size() >= sizeof(sockaddr_un::sun_path)) return {};
 
         int fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -229,8 +229,8 @@ private:
     }
 
     Instance *instance_;
-    FactoryFor<CotypistState> stateFactory_{
-        [](InputContext &) { return new CotypistState; }};
+    FactoryFor<InlineState> stateFactory_{
+        [](InputContext &) { return new InlineState; }};
     std::vector<std::unique_ptr<HandlerTableEntry<EventHandler>>> handlers_;
     std::mutex mutex_;
     std::condition_variable condition_;
@@ -239,13 +239,13 @@ private:
     std::thread worker_;
 };
 
-class CotypistFactory final : public AddonFactory {
+class InlineCompletionFactory final : public AddonFactory {
 public:
     AddonInstance *create(AddonManager *manager) override {
-        return new Cotypist(manager->instance());
+        return new InlineCompletion(manager->instance());
     }
 };
 
 } // namespace fcitx
 
-FCITX_ADDON_FACTORY_V2(cotypist, fcitx::CotypistFactory)
+FCITX_ADDON_FACTORY_V2(inlinecompletion, fcitx::InlineCompletionFactory)

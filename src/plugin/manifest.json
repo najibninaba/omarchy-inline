@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "id": "najib.cotypist",
-  "name": "Cotypist",
+  "id": "najib.inline",
+  "name": "Inline",
   "version": "0.1.0",
   "author": "Najib",
   "license": "MIT",
@@ -11,7 +11,7 @@
     "barWidget": "Panel.qml"
   },
   "barWidget": {
-    "displayName": "Cotypist",
+    "displayName": "Inline",
     "description": "Toggle local inline completion and inspect its model.",
     "category": "System",
     "allowMultiple": false,

@@ -1,4 +1,4 @@
-# Cotypist for Omarchy
+# Inline for Omarchy
 
 Local, system-wide inline text completion for the `kasturi` and `jebat-tuf`
 Omarchy machines.
@@ -46,18 +46,18 @@ them would break shortcuts and Tab behavior.
 
 ## Configuration
 
-Edit `~/.config/cotypist-omarchy/config.toml`, then restart the daemon:
+Edit `~/.config/omarchy-inline/config.toml`, then restart the daemon:
 
 ```bash
-systemctl --user restart cotypist.service
+systemctl --user restart omarchy-inline.service
 ```
 
 ## Verify
 
 ```bash
 scripts/check
-systemctl --user status cotypist.service
-cotypist status
+systemctl --user status omarchy-inline.service
+omarchy-inline status
 ```
 
 ## Uninstall

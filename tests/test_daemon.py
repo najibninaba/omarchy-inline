@@ -10,10 +10,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 ROOT = Path(__file__).resolve().parents[1]
-loader = importlib.machinery.SourceFileLoader("cotypist_daemon", str(ROOT / "src/daemon/cotypist"))
+loader = importlib.machinery.SourceFileLoader("inline_daemon", str(ROOT / "src/daemon/omarchy-inline"))
 spec = importlib.util.spec_from_loader(loader.name, loader)
-cotypist = importlib.util.module_from_spec(spec)
-loader.exec_module(cotypist)
+inline_daemon = importlib.util.module_from_spec(spec)
+loader.exec_module(inline_daemon)
 
 
 class OllamaHandler(BaseHTTPRequestHandler):
@@ -53,12 +53,12 @@ class PredictorTest(unittest.TestCase):
         self.temp.cleanup()
 
     def test_predicts_with_bounded_context_and_cleans_multiline_output(self):
-        config = dict(cotypist.DEFAULT_CONFIG)
+        config = dict(inline_daemon.DEFAULT_CONFIG)
         config.update({
             "ollama_url": f"http://127.0.0.1:{self.server.server_port}",
             "context_chars": 5,
         })
-        predictor = cotypist.Predictor(config)
+        predictor = inline_daemon.Predictor(config)
 
         self.assertEqual(predictor.suggest("0123456789"), " continuation words")
         prompt = OllamaHandler.request_body["prompt"]
@@ -66,19 +66,19 @@ class PredictorTest(unittest.TestCase):
         self.assertEqual(OllamaHandler.request_body["stream"], False)
 
     def test_disabled_never_calls_model(self):
-        marker = cotypist.config_home() / "disabled"
+        marker = inline_daemon.config_home() / "disabled"
         marker.parent.mkdir(parents=True)
         marker.touch()
         OllamaHandler.request_body = None
 
-        self.assertEqual(cotypist.Predictor(cotypist.DEFAULT_CONFIG).suggest("hello"), "")
+        self.assertEqual(inline_daemon.Predictor(inline_daemon.DEFAULT_CONFIG).suggest("hello"), "")
         self.assertIsNone(OllamaHandler.request_body)
 
 
 class CleanCompletionTest(unittest.TestCase):
     def test_removes_labels_quotes_and_extra_paragraphs(self):
-        self.assertEqual(cotypist.clean_completion('Continuation: "hello there"\nmore'), "hello there")
-        self.assertEqual(cotypist.clean_completion('"hello there"'), "hello there")
+        self.assertEqual(inline_daemon.clean_completion('Continuation: "hello there"\nmore'), "hello there")
+        self.assertEqual(inline_daemon.clean_completion('"hello there"'), "hello there")
 
 
 if __name__ == "__main__":
