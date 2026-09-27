@@ -18,14 +18,12 @@ daemon, Ollama, and a ble.sh terminal integration.
   contexts. Raw-mode agent TUIs retain their own input handling.
 - Adds an Omarchy bar widget for status and pause/resume.
 
-Kasturi uses `qwen2.5:0.5b` on CPU. Jebat-TUF uses `qwen2.5:1.5b` with CUDA.
-
 ## Supported systems
 
-The first release targets two Omarchy machines:
+Inline includes two hardware profiles:
 
-- `kasturi`: CPU inference with `qwen2.5:0.5b`
-- `jebat-tuf`: NVIDIA inference with `qwen2.5:1.5b`
+- `cpu` (default): CPU inference with `qwen2.5:0.5b`
+- `nvidia`: NVIDIA CUDA inference with `qwen2.5:1.5b`
 
 ## Install
 
@@ -39,10 +37,10 @@ omarchy plugin add https://github.com/najibninaba/omarchy-inline
 ~/.config/omarchy/plugins/io.github.najibninaba.inline/setup
 ```
 
-On another hostname, select one of the supported hardware profiles explicitly:
+On a machine with an NVIDIA GPU, select the NVIDIA profile explicitly:
 
 ```bash
-~/.config/omarchy/plugins/io.github.najibninaba.inline/setup --profile kasturi
+~/.config/omarchy/plugins/io.github.najibninaba.inline/setup --profile nvidia
 ```
 
 Setup displays its changes and asks before proceeding. It installs Arch build

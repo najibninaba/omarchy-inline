@@ -4,12 +4,12 @@ set -euo pipefail
 
 root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 plugin_id=io.github.najibninaba.inline
-profile=$(hostname -s)
+profile=cpu
 assume_yes=false
 
 usage() {
   cat <<'EOF'
-Usage: ./setup [--profile kasturi|jebat-tuf] [--yes]
+Usage: ./setup [--profile cpu|nvidia] [--yes]
 
 Build and install Inline's native module, local daemon, Bash integration, and
 model runtime. Run this from the checkout created by `omarchy plugin add`.
@@ -30,10 +30,10 @@ while (($#)); do
 done
 
 case "$profile" in
-  kasturi) profile=kasturi; ollama_package=ollama ;;
-  jebat-tuf) profile=jebat-tuf; ollama_package=ollama-cuda ;;
+  cpu) ollama_package=ollama ;;
+  nvidia) ollama_package=ollama-cuda ;;
   *)
-    echo "Unsupported profile '$profile'. Use --profile kasturi or --profile jebat-tuf." >&2
+    echo "Unsupported profile '$profile'. Use --profile cpu or --profile nvidia." >&2
     exit 1
     ;;
 esac
