@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+packages=(
+  cmake
+  extra-cmake-modules
+  g++
+  jq
+  ninja-build
+  pkg-config
+  python3
+  shellcheck
+)
+
+# Debian 12's Fcitx headers predate the API used by this Arch-targeted plugin.
+# The native module is built against current Fcitx by the Arch Linux CI job.
+
+missing=()
+for package in "${packages[@]}"; do
+  if ! dpkg-query -W -f='${db:Status-Status}' "$package" 2>/dev/null | grep -qx installed; then
+    missing+=("$package")
+  fi
+done
+
+if ((${#missing[@]})); then
+  echo "Installing development packages: ${missing[*]}"
+  sudo apt-get update
+  sudo apt-get install -y --no-install-recommends "${missing[@]}"
+else
+  echo "Development packages are already installed."
+fi
+
+echo "Orb setup complete."
