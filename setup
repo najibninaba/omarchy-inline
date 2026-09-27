@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+plugin_id=io.github.najibninaba.inline
+profile=$(hostname -s)
+assume_yes=false
+
+usage() {
+  cat <<'EOF'
+Usage: ./setup [--profile kasturi|jebat-tuf] [--yes]
+
+Build and install Inline's native module, local daemon, Bash integration, and
+model runtime. Run this from the checkout created by `omarchy plugin add`.
+EOF
+}
+
+while (($#)); do
+  case "$1" in
+    --profile)
+      [[ $# -ge 2 ]] || { echo "--profile requires a value" >&2; exit 2; }
+      profile=$2
+      shift 2
+      ;;
+    --yes) assume_yes=true; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+case "$profile" in
+  kasturi) profile=kasturi; ollama_package=ollama ;;
+  jebat-tuf) profile=jebat-tuf; ollama_package=ollama-cuda ;;
+  *)
+    echo "Unsupported profile '$profile'. Use --profile kasturi or --profile jebat-tuf." >&2
+    exit 1
+    ;;
+esac
+
+command -v omarchy >/dev/null || { echo "This installer requires Omarchy." >&2; exit 1; }
+command -v pacman >/dev/null || { echo "This installer requires an Arch-based system." >&2; exit 1; }
+
+expected_dir="$HOME/.config/omarchy/plugins/$plugin_id"
+if [[ $(realpath -m -- "$root_dir") != $(realpath -m -- "$expected_dir") ]]; then
+  cat >&2 <<EOF
+Run setup from the plugin checkout created by:
+  omarchy plugin add https://github.com/najibninaba/omarchy-inline
+Expected checkout: $expected_dir
+EOF
+  exit 1
+fi
+
+omarchy plugin validate "$root_dir"
+
+config_path="$HOME/.config/omarchy-inline/config.toml"
+if [[ -e "$config_path" ]]; then
+  model=$(sed -n 's/^model = "\(.*\)"/\1/p' "$config_path")
+else
+  model=$(sed -n 's/^model = "\(.*\)"/\1/p' "$root_dir/src/config/config.$profile.toml")
+fi
+[[ -n $model ]] || { echo "No model is configured in $config_path." >&2; exit 1; }
+cat <<EOF
+Inline setup profile: $profile
+Model: $model
+
+This will install Arch packages, build and install an Fcitx5 module under
+/usr, enable Ollama, download the model, install a user service, and add a
+clearly marked Inline block to ~/.bashrc.
+EOF
+
+if ! $assume_yes; then
+  [[ -t 0 ]] || { echo "Interactive confirmation required; rerun with --yes." >&2; exit 1; }
+  read -r -p "Continue? [y/N] " answer
+  [[ $answer == [yY] || $answer == [yY][eE][sS] ]] || exit 0
+fi
+
+# Authenticate once before making any changes so setup cannot fail halfway at
+# a later privilege boundary.
+sudo -v
+
+for package in cmake extra-cmake-modules gcc ninja fcitx5 "$ollama_package" blesh-git; do
+  pacman -Q "$package" >/dev/null 2>&1 || omarchy pkg add "$package"
+done
+
+cmake -S "$root_dir/src/fcitx" -B "$root_dir/build/fcitx" -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib
+cmake --build "$root_dir/build/fcitx"
+sudo cmake --install "$root_dir/build/fcitx"
+
+install -Dm0755 "$root_dir/src/daemon/omarchy-inline" "$HOME/.local/bin/omarchy-inline"
+install -d -m0700 "$HOME/.config/omarchy-inline"
+if [[ ! -e "$config_path" ]]; then
+  install -m0600 "$root_dir/src/config/config.$profile.toml" \
+    "$config_path"
+fi
+install -Dm0644 "$root_dir/src/systemd/omarchy-inline.service" \
+  "$HOME/.local/share/systemd/user/omarchy-inline.service"
+install -Dm0644 "$root_dir/src/bash/inline.bash" \
+  "$HOME/.config/omarchy-inline/inline.bash"
+
+bashrc_begin='# >>> omarchy-inline >>>'
+if ! grep -Fqx "$bashrc_begin" "$HOME/.bashrc"; then
+  cat >>"$HOME/.bashrc" <<'EOF'
+
+# >>> omarchy-inline >>>
+[[ -r /usr/share/blesh/ble.sh ]] && source /usr/share/blesh/ble.sh --attach=none
+[[ -r "$HOME/.config/omarchy-inline/inline.bash" ]] && source "$HOME/.config/omarchy-inline/inline.bash"
+[[ ${BLE_VERSION-} ]] && ble-attach
+# <<< omarchy-inline <<<
+EOF
+fi
+
+sudo systemctl enable --now ollama.service
+ollama pull "$model"
+systemctl --user daemon-reload
+systemctl --user enable omarchy-inline.service
+systemctl --user restart omarchy-inline.service
+systemctl --user restart omarchy-fcitx5.service
+
+omarchy-shell shell rescanPlugins
+omarchy plugin enable "$plugin_id" right
+omarchy restart shell
+
+echo "Inline installed for $profile. Open a new terminal for Bash ghost text."

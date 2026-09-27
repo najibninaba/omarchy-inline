@@ -3,13 +3,25 @@
 set -euo pipefail
 
 root_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+export PYTHONPYCACHEPREFIX="$root_dir/build/pycache"
 
-bash -n "$root_dir/install.sh"
-bash -n "$root_dir/uninstall.sh"
+bash -n "$root_dir/setup"
+bash -n "$root_dir/uninstall"
 bash -n "$root_dir/src/bash/inline.bash"
 python -m py_compile "$root_dir/src/daemon/omarchy-inline"
 python -m unittest discover -s "$root_dir/tests" -v
-jq -e . "$root_dir/src/plugin/manifest.json" >/dev/null
+jq -e '
+  .schemaVersion == 1 and
+  .id == "io.github.najibninaba.inline" and
+  .kinds == ["bar-widget"] and
+  .entryPoints.barWidget == "Panel.qml"
+' "$root_dir/manifest.json" >/dev/null
+grep -Fq 'moduleName: "io.github.najibninaba.inline"' "$root_dir/Panel.qml"
+
+if command -v shellcheck >/dev/null; then
+  shellcheck "$root_dir/setup" "$root_dir/uninstall" \
+    "$root_dir/scripts/check"
+fi
 
 if command -v cmake >/dev/null && pkg-config --exists Fcitx5Core 2>/dev/null; then
   cmake -S "$root_dir/src/fcitx" -B "$root_dir/build/fcitx" -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -17,7 +29,7 @@ if command -v cmake >/dev/null && pkg-config --exists Fcitx5Core 2>/dev/null; th
 fi
 
 if command -v omarchy >/dev/null; then
-  omarchy plugin validate "$root_dir/src/plugin"
+  omarchy plugin validate "$root_dir"
 fi
 
 echo "Checks passed."

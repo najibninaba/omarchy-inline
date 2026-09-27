@@ -6,7 +6,7 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "najib.inline"
+  moduleName: "io.github.najibninaba.inline"
   manageIpc: false
 
   property bool enabled: false

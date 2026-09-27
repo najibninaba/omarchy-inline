@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+systemctl --user disable --now omarchy-inline.service 2>/dev/null || true
+rm -f "$HOME/.local/share/systemd/user/omarchy-inline.service"
+rm -f "$HOME/.local/bin/omarchy-inline"
+rm -f "$HOME/.config/omarchy-inline/inline.bash"
+
+if [[ -e /usr/lib/fcitx5/inlinecompletion.so || -e /usr/share/fcitx5/addon/inlinecompletion.conf ]]; then
+  sudo -v
+  sudo rm -f /usr/lib/fcitx5/inlinecompletion.so /usr/share/fcitx5/addon/inlinecompletion.conf
+fi
+
+if [[ -f "$HOME/.bashrc" ]]; then
+  temp=$(mktemp)
+  awk '
+    $0 == "# >>> omarchy-inline >>>" { skip = 1; next }
+    $0 == "# <<< omarchy-inline <<<" { skip = 0; next }
+    !skip { print }
+  ' "$HOME/.bashrc" >"$temp"
+  cat "$temp" >"$HOME/.bashrc"
+  rm -f "$temp"
+fi
+
+systemctl --user daemon-reload
+systemctl --user restart omarchy-fcitx5.service 2>/dev/null || true
+
+cat <<'EOF'
+Inline's daemon, Fcitx5 module, user service, and Bash integration were removed.
+Configuration, Ollama, downloaded models, and shared packages were retained.
+
+Remove the shell plugin separately with:
+  omarchy plugin remove io.github.najibninaba.inline
+EOF

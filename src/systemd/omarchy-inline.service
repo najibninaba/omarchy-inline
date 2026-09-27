@@ -1,16 +1,31 @@
 [Unit]
 Description=Local inline completion daemon
-After=ollama.service
+After=graphical-session.target
+PartOf=graphical-session.target
 
 [Service]
 ExecStart=%h/.local/bin/omarchy-inline serve
 Restart=on-failure
 RestartSec=2
+UMask=0077
+RuntimeDirectory=omarchy-inline
+RuntimeDirectoryMode=0700
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=%h/.config/omarchy-inline %t/omarchy-inline
+CapabilityBoundingSet=
+LockPersonality=yes
+RestrictSUIDSGID=yes
+RestrictNamespaces=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
 WantedBy=graphical-session.target

@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "najib.inline",
+  "id": "io.github.najibninaba.inline",
   "name": "Inline",
   "version": "0.1.0",
-  "author": "Najib",
+  "author": "Najib Ninaba",
   "license": "MIT",
   "description": "Local inline AI completion for Omarchy applications and Bash.",
   "kinds": ["bar-widget"],

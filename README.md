@@ -1,7 +1,8 @@
 # Inline for Omarchy
 
-Local, system-wide inline text completion for the `kasturi` and `jebat-tuf`
-Omarchy machines.
+Private, local AI text completion for Omarchy applications and Bash. Inline
+combines a Quattro bar widget with a native Fcitx5 module, a local completion
+daemon, Ollama, and a ble.sh terminal integration.
 
 ## What it does
 
@@ -19,18 +20,36 @@ Omarchy machines.
 
 Kasturi uses `qwen2.5:0.5b` on CPU. Jebat-TUF uses `qwen2.5:1.5b` with CUDA.
 
+## Supported systems
+
+The first release targets two Omarchy machines:
+
+- `kasturi`: CPU inference with `qwen2.5:0.5b`
+- `jebat-tuf`: NVIDIA inference with `qwen2.5:1.5b`
+
 ## Install
 
-Clone this repository on either supported machine, then run:
+Inline requires manual setup because `omarchy plugin add` intentionally only
+clones and validates shell plugins; it never executes installers or uses sudo.
+
+Add the plugin, then run its reviewed setup script:
 
 ```bash
-./install.sh
+omarchy plugin add https://github.com/najibninaba/omarchy-inline
+~/.config/omarchy/plugins/io.github.najibninaba.inline/setup
 ```
 
-The installer adds the model runtime and build dependencies, installs the
-Fcitx5 module, daemon, Bash integration, and bar widget, then downloads the
-machine's local model. It uses the current `blesh-git` extension API rather
-than the older stable ble.sh package. Open a new terminal after installation.
+On another hostname, select one of the supported hardware profiles explicitly:
+
+```bash
+~/.config/omarchy/plugins/io.github.najibninaba.inline/setup --profile kasturi
+```
+
+Setup displays its changes and asks before proceeding. It installs Arch build
+and runtime packages, builds the Fcitx5 module from this checkout, installs the
+daemon and user service, adds a marked block to `~/.bashrc`, enables Ollama,
+and downloads the configured model. It uses `sudo` for packages, the system
+Fcitx5 module, and Ollama's system service. Open a new terminal afterward.
 
 ## Use
 
@@ -58,13 +77,45 @@ systemctl --user restart omarchy-inline.service
 scripts/check
 systemctl --user status omarchy-inline.service
 omarchy-inline status
+omarchy plugin validate ~/.config/omarchy/plugins/io.github.najibninaba.inline
+```
+
+`scripts/check` runs unit tests and, when the tools are available, ShellCheck,
+the native CMake build, and Omarchy's official plugin validator.
+
+## Update
+
+Update the plugin checkout, then rerun setup so the native module and daemon
+match the QML source:
+
+```bash
+omarchy plugin update io.github.najibninaba.inline
+~/.config/omarchy/plugins/io.github.najibninaba.inline/setup
 ```
 
 ## Uninstall
 
 ```bash
-./uninstall.sh
+~/.config/omarchy/plugins/io.github.najibninaba.inline/uninstall
+omarchy plugin remove io.github.najibninaba.inline
 ```
 
-The uninstaller retains the model, runtime packages, configuration, and Bash
-startup line so it does not remove resources another setup may use.
+Run `uninstall` before removing the plugin checkout. It removes Inline-owned
+native files, the daemon, user service, and marked Bash block. It retains the
+configuration, Ollama, models, and shared packages.
+
+## Architecture and security
+
+- The QML widget only invokes the fixed `omarchy-inline status` and `toggle`
+  commands.
+- The Fcitx5 module and Bash integration use an owner-only Unix socket under
+  `$XDG_RUNTIME_DIR/omarchy-inline`.
+- The daemon sends completion requests only to the configured local Ollama
+  endpoint. Text does not leave the machine with the default configuration.
+- Password, sensitive, disabled, and generic terminal Fcitx contexts are
+  excluded. Raw-mode agent TUIs are not intercepted.
+- The systemd user service runs with a read-only home and restricted kernel,
+  namespace, privilege, and network access.
+
+Omarchy plugins run unsandboxed inside the long-lived shell process. Review
+this repository and its setup script before enabling it.
